@@ -2,6 +2,7 @@
 
 import ManageBoards from "@/components/dashboard/manage-boards";
 import StatsCard from "@/components/dashboard/stats-card";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -13,15 +14,15 @@ import { Input } from "@/components/ui/input";
 import { useBoards } from "@/lib/hooks/useBoardHooks";
 import { useUser } from "@clerk/nextjs";
 import {
-  Badge,
   Clock,
-  Link,
   LoaderCircle,
   OctagonAlert,
+  Plus,
   Rocket,
   Search,
   Trello,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 const Dashboard = () => {
@@ -131,21 +132,26 @@ const Dashboard = () => {
               No boards yet
             </div>
           ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
               {boards.map((board) => (
-                <div  key={board.id}>
-                  <Card>
-                    <CardHeader>
-                      <div>
-                        <div className={`w-5 h-5 ${board.color} rounded-2xl flex justify-center items-center`}>
-                          {/* <Badge>New</Badge> */}
-                        </div>
+                <Link href={`/boards/${board.id}`} key={board.id}>
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-between items-center">
+                        <div className={`w-5 h-5 ${board.color} rounded`}></div>
+                        <Badge className="text-xs" variant="secondary">
+                          New
+                        </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent>
-                      <CardTitle>{board.title}</CardTitle>
-                      <CardDescription>{board.description}</CardDescription>
-                      <div>
+                    <CardContent className="p-4 sm:p-6">
+                      <CardTitle className="text-base sm:text-lg mb-2 group-hover:text-blue-600 transition-colors">
+                        {board.title}
+                      </CardTitle>
+                      <CardDescription className="text-sm mb-4">
+                        {board.description}
+                      </CardDescription>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-gray-500 space-y-1 sm:space-y-0">
                         <span>
                           Created{" "}
                           {new Date(board.created_at).toLocaleDateString()}
@@ -158,11 +164,67 @@ const Dashboard = () => {
                       </div>
                     </CardContent>
                   </Card>
-                </div>
+                </Link>
               ))}
+
+              <Card className="border-2 border-dashed border-gray-300 hover:border-blue-400 cursor-pointer transition-colors group">
+                <CardContent className="p-4 sm:p-6 flex flex-col justify-center items-center h-full min-h-42.5">
+                  <Plus className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 group-hover:text-blue-600 mb-2" />
+                  <p className="text-sm sm:text-base text-gray-600 group-hover:text-blue-600 font-medium">
+                    Create new board
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           ) : (
-            <div></div>
+            <div>
+              {boards.map((board, index) => (
+                <div className={index > 0 ? "mt-4" : ""} key={board.id}>
+                  <Link href={`/boards/${board.id}`}>
+                    <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-center">
+                          <div
+                            className={`w-5 h-5 ${board.color} rounded`}
+                          ></div>
+                          <Badge className="text-xs" variant="secondary">
+                            New
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 sm:p-6">
+                        <CardTitle className="text-base sm:text-lg mb-2 group-hover:text-blue-600 transition-colors">
+                          {board.title}
+                        </CardTitle>
+                        <CardDescription className="text-sm mb-4">
+                          {board.description}
+                        </CardDescription>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-gray-500 space-y-1 sm:space-y-0">
+                          <span>
+                            Created{" "}
+                            {new Date(board.created_at).toLocaleDateString()}
+                          </span>
+
+                          <span>
+                            Updated{" "}
+                            {new Date(board.updated_at)?.toLocaleDateString()}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </div>
+              ))}
+
+              <Card className="border-2 mt-4 border-dashed border-gray-300 hover:border-blue-400 cursor-pointer transition-colors group">
+                <CardContent className="p-4 sm:p-6 flex flex-col justify-center items-center h-full min-h-42.5">
+                  <Plus className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 group-hover:text-blue-600 mb-2" />
+                  <p className="text-sm sm:text-base text-gray-600 group-hover:text-blue-600 font-medium">
+                    Create new board
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </section>
       </main>
