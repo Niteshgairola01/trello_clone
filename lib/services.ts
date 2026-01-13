@@ -2,6 +2,18 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { Board, Column } from "./supabase/models";
 
 export const boardServices = {
+  async getBoard(supabase: SupabaseClient, boardId: string): Promise<Board> {
+    const { data, error } = await supabase
+      .from("boards")
+      .select("*")
+      .eq("id", boardId)
+      .single();
+
+    if (error) throw error;
+
+    return data;
+  },
+
   async getBoards(supabase: SupabaseClient, userId: string): Promise<Board[]> {
     const { data, error } = await supabase
       .from("boards")
@@ -28,18 +40,35 @@ export const boardServices = {
 
     return data;
   },
+
+  async updateBoard(
+    supabase: SupabaseClient,
+    boardId: string,
+    updates: Partial<Board>
+  ): Promise<Board> {
+    const { data, error } = await supabase
+      .from("boards")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", boardId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return data;
+  },
 };
 
 export const columnServices = {
   async getColumns(
     supabase: SupabaseClient,
-    userId: string
+    boardId: string
   ): Promise<Column[]> {
     const { data, error } = await supabase
       .from("columns")
       .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .eq("board_id", boardId)
+      .order("sort_order", { ascending: true });
 
     if (error) throw error;
 
@@ -63,6 +92,15 @@ export const columnServices = {
 };
 
 export const boardDataService = {
+  async getBoardWithColumns(supabase: SupabaseClient, boardId: string) {
+    const [board, columns] = await Promise.all([
+      boardServices.getBoard(supabase, boardId),
+      columnServices.getColumns(supabase, boardId),
+    ]);
+
+    return { board, columns };
+  },
+
   async createBoardWithDefaultColumns(
     supabase: SupabaseClient,
     boardData: {
@@ -88,7 +126,11 @@ export const boardDataService = {
 
     await Promise.all(
       defaultColumns.map((column) =>
-        columnServices.createColumn(supabase, { ...column, board_id: board.id, user_id: boardData.userId })
+        columnServices.createColumn(supabase, {
+          ...column,
+          board_id: board.id,
+          user_id: boardData.userId,
+        })
       )
     );
 
