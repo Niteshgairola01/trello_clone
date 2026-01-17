@@ -1,5 +1,8 @@
 "use client";
 
+import Column from "@/components/tasks/Column";
+import TaskItem from "@/components/tasks/TaskItem";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import {
@@ -10,8 +13,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useBoard } from "@/lib/hooks/useBoardHooks";
-import { Workflow } from "lucide-react";
+import { DialogTrigger } from "@radix-ui/react-dialog";
+import { Filter, Plus, Workflow } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useState } from "react";
 
@@ -30,13 +42,19 @@ const colorOptions = [
   "bg-emerald-500",
 ];
 
+const filterCount = 2;
+
+const priorityOptions = ["low", "medium", "high"];
+
 const Board = () => {
   const { id } = useParams<{ id: string }>();
-  const { board, updateBoard } = useBoard(id);
+  const { board, columns, updateBoard, createTask } = useBoard(id);
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newColor, setNewColor] = useState("");
+
+  const [isFilteringTasks, setIsFilteringTasks] = useState(false);
 
   const handleShowEditDialogBox = () => {
     setNewTitle(board?.title ?? "");
@@ -54,21 +72,83 @@ const Board = () => {
     setIsEditingTitle(false);
   };
 
+  const handleCreateTask = async (taskData: {
+    title: string;
+    description?: string;
+    assignee?: string;
+    dueDate?: string;
+    priority: "low" | "medium" | "high";
+  }) => {
+    const targetColumn = columns[0];
+    if (!targetColumn) {
+      throw new Error("No column available to add task");
+    }
+
+    createTask(targetColumn.id, taskData);
+  };
+
+  const handleSubmitTask = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const taskData = {
+      title: formData.get("title") as string,
+      description: (formData.get("description") as string) || undefined,
+      assignee: (formData.get("assignee") as string) || undefined,
+      dueDate: (formData.get("dueDate") as string) || undefined,
+      priority:
+        (formData.get("priority") as "low" | "medium" | "high") || "medium",
+    };
+
+    if (taskData.title.trim()) {
+      await handleCreateTask(taskData);
+      const trigger = document.querySelector(
+        '[data-state="open"]'
+      ) as HTMLElement;
+
+      if (trigger) trigger.click();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-5">
-      <Card className="px-3 flex items-start flex-row  gap-3">
-        <Workflow className="text-blue-600" />
-        <CardTitle className="text-gray-900 text-lg justify-start items-center space-x-1 sm:space-x-2 min-w-9 ">
-          {board?.title}
-        </CardTitle>
-        <span
-          className="font-bold cursor-pointer"
-          onClick={() => handleShowEditDialogBox()}
-        >
-          . . .{" "}
-        </span>
+      <Card className="px-3 flex justify-between items-center flex-row">
+        <div className="flex items-start flex-row  gap-3">
+          <Workflow className="text-blue-600" />
+          <CardTitle className="text-gray-900 text-lg justify-start items-center space-x-1 sm:space-x-2 min-w-9 ">
+            {board?.title}
+          </CardTitle>
+          <span
+            className="font-bold cursor-pointer"
+            onClick={() => handleShowEditDialogBox()}
+          >
+            . . .{" "}
+          </span>
+        </div>
+
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            className={`text-xs sm:text-sm ${
+              filterCount > 0 ? "bg-blue-100 border-blue-200 " : ""
+            }`}
+            onClick={() => setIsFilteringTasks(true)}
+          >
+            <Filter />
+            <span className="hidden sm:inline">Filter</span>
+            {filterCount > 0 && (
+              <Badge
+                variant="secondary"
+                className="text-xs ml-2 sm:ml-2 bg-blue-200 border-blue-300 text-black"
+              >
+                2
+              </Badge>
+            )}
+          </Button>
+        </div>
       </Card>
 
+      {/* Edit Dialog */}
       <Dialog open={isEditingTitle} onOpenChange={setIsEditingTitle}>
         <DialogContent className="w-[95vw] max-w-106.25 mx-auto">
           <DialogHeader>
@@ -114,6 +194,156 @@ const Board = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Filter Tasks Dialog */}
+      <Dialog open={isFilteringTasks} onOpenChange={setIsFilteringTasks}>
+        <DialogContent className="w-[95vw] max-w-106.25 mx-auto">
+          <DialogHeader>
+            <DialogTitle>Filter Tasks</DialogTitle>
+            <p className="text-sm text-gray-600">
+              Filter tasks by priority, assignee or due date
+            </p>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label>Prority</Label>
+              <div className="flex flex-wrap gap-2">
+                {priorityOptions.map((priority, index) => (
+                  <Button
+                    className="text-xs md:text-sm cursor-pointer capitalize"
+                    variant="outline"
+                    size="sm"
+                    key={index}
+                  >
+                    {priority}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Due Date</Label>
+              <Input type="date" />
+            </div>
+
+            <div className="flex justify-between items-center pt-4">
+              <Button
+                size="sm"
+                className="text-xs sm:text-sm"
+                variant="outline"
+              >
+                Clear Filters
+              </Button>
+              <Button size="sm" className="text-xs sm:text-sm">
+                Apply Filters
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Board Content */}
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
+        {/* Stats */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 space-y-4 sm:space-y-0 ">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 ">
+            <div className="text-sm text-gray-600">
+              <span className="font-medium">Total Tasks : </span>
+              {columns.reduce((sum, col) => sum + col.tasks.length, 0)}
+            </div>
+          </div>
+
+          {/* Add task dialog */}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="w-full sm:w-auto">
+                <Plus />
+                Add Task
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="w-[95vw] max-w-106.25 mx-auto">
+              <DialogHeader>
+                <DialogTitle>Create New Task</DialogTitle>
+                <p className="text-sm text-gray-600">
+                  Add a task to the board{" "}
+                </p>
+              </DialogHeader>
+
+              <form className="space-y-4" onSubmit={handleSubmitTask}>
+                <div className="space-y-2">
+                  <Label>Title *</Label>
+                  <Input
+                    id="title"
+                    name="title"
+                    placeholder="Enter task title"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    placeholder="Enter task description"
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Assignee</Label>
+                  <Input
+                    id="assignee"
+                    name="assignee"
+                    placeholder="Who should do this"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select
+                    name="priority"
+                    defaultValue="medium"
+                    onValueChange={() => console.log("test")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {priorityOptions.map((priority, index) => (
+                        <SelectItem key={index} value={priority}>
+                          {priority}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Due Date</Label>
+                  <Input type="date" id="dueDate" name="dueDate" />
+                </div>
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button type="submit">Create Task</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Column */}
+        <div className="space-y-4 lg:space-y-0 flex flex-col lg:flex-row lg:space-x-6 lg:overflow-x-auto lg:pb-6 lg:px-2 lg:mx-2 lg:[&::-webkit-scrollbar]:h-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:[&::-webkit-scrollbar-thumb]:rounded-full">
+          {columns.map((column) => (
+            <Column
+              column={column}
+              onCreateTask={handleCreateTask}
+              onEditColumn={() => {}}
+              key={column.id}
+            >
+              <div className="space-y-3">
+                {column.tasks.map((task) => (
+                  <TaskItem task={task} key={task.id} />
+                ))}
+              </div>
+            </Column>
+          ))}
+        </div>
+      </main>
     </div>
   );
 };
