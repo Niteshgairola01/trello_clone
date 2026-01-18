@@ -1,3 +1,5 @@
+"use client";
+
 import { ColumnWithTasks } from "@/lib/supabase/models";
 import { MoreHorizontal, Plus } from "lucide-react";
 import React from "react";
@@ -11,8 +13,9 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import CreateTaskForm from "./CreateTaskForm";
+import { useDroppable } from "@dnd-kit/core";
 
-const Column = ({
+const DroppableColumn = ({
   column,
   children,
   onCreateTask,
@@ -23,9 +26,20 @@ const Column = ({
   onCreateTask: (taskData: any) => Promise<void>;
   onEditColumn: (column: ColumnWithTasks) => void;
 }) => {
+  const { setNodeRef, isOver } = useDroppable({ id: column.id });
+
   return (
-    <div className="w-full lg:shrink-0 lg:w-80">
-      <div className="bg-white rounded-lg shadow-sm border">
+    <div
+      ref={setNodeRef}
+      className={`w-full lg:shrink-0 lg:w-80 ${
+        isOver ? "bg-blue-50 rounded-lg" : ""
+      }`}
+    >
+      <div
+        className={`bg-white rounded-lg shadow-sm border ${
+          isOver ? "ring-2 ring-blue-300" : ""
+        }`}
+      >
         {/* Column Header */}
         <div className="p-3 sm:p-4 border-b">
           <div className="flex items-center justify-between">
@@ -72,4 +86,4 @@ const Column = ({
     </div>
   );
 };
-export default Column;
+export default DroppableColumn;

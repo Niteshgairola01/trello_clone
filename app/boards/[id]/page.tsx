@@ -1,8 +1,9 @@
 "use client";
 
-import Column from "@/components/tasks/Column";
+import React, { useState } from "react";
 import CreateTaskForm from "@/components/tasks/CreateTaskForm";
-import TaskItem from "@/components/tasks/TaskItem";
+import DroppableColumn from "@/components/tasks/DroppableColumn";
+import SortableTask from "@/components/tasks/SortableTask";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,22 @@ import { useBoard } from "@/lib/hooks/useBoardHooks";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { Filter, Plus, Workflow } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useState } from "react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  rectIntersection,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { ColumnWithTasks, Task } from "@/lib/supabase/models";
 
 const colorOptions = [
   "bg-blue-500",
@@ -39,15 +55,30 @@ const filterCount = 2;
 
 const priorityOptions = ["low", "medium", "high"];
 
+const TaskOverlay = ({ task }: { task: Task }) => {
+  return <SortableTask task={task} />;
+};
+
 const Board = () => {
   const { id } = useParams<{ id: string }>();
-  const { board, columns, updateBoard, createTask } = useBoard(id);
+  const { board, columns, setColumns, updateBoard, createTask, moveTask } =
+    useBoard(id);
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newColor, setNewColor] = useState("");
 
   const [isFilteringTasks, setIsFilteringTasks] = useState(false);
+
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const handleShowEditDialogBox = () => {
     setNewTitle(board?.title ?? "");
@@ -99,6 +130,101 @@ const Board = () => {
       ) as HTMLElement;
 
       if (trigger) trigger.click();
+    }
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const taskId = event.active.id as string;
+    const task = columns
+      .flatMap((col) => col.tasks)
+      .find((task) => task.id === taskId);
+
+    if (task) {
+      setActiveTask(task);
+    }
+  };
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    const sourceColumn = columns.find((col) =>
+      col.tasks.some((task) => task.id === activeId)
+    );
+
+    const targetColumn = columns.find((col) =>
+      col.tasks.some((task) => task.id === overId)
+    );
+
+    const activeIndex = sourceColumn?.tasks.findIndex(
+      (task) => task.id === activeId
+    );
+
+    const overIndex = targetColumn?.tasks.findIndex(
+      (task) => task.id === overId
+    );
+
+    if (activeIndex === undefined || overIndex === undefined) return;
+
+    if (activeIndex !== overIndex) {
+      setColumns((prev: ColumnWithTasks[]) => {
+        const newColumns = [...prev];
+        const column = newColumns.find((col) => col.id === sourceColumn?.id);
+        if (column) {
+          const tasks = [...column.tasks];
+          const [removedTask] = tasks.splice(activeIndex, 1);
+
+          tasks.splice(overIndex, 0, removedTask);
+          column.tasks = tasks;
+        }
+
+        return newColumns;
+      });
+    }
+  };
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over) return;
+
+    const taskId = active.id as string;
+    const overId = over.id as string;
+
+    const targetColumn = columns.find((col) => col.id === overId);
+
+    if (targetColumn) {
+      const sourceColumn = columns.find((col) =>
+        col.tasks.some((task) => task.id === taskId)
+      );
+
+      if (sourceColumn && sourceColumn.id !== targetColumn.id) {
+        await moveTask(taskId, targetColumn.id, targetColumn.tasks.length);
+      } else {
+        const sourceColumn = columns.find((col) =>
+          col.tasks.some((task) => task.id === taskId)
+        );
+
+        const targetColumn = columns.find((col) =>
+          col.tasks.some((task) => task.id === overId)
+        );
+
+        if (sourceColumn && targetColumn) {
+          const oldIndex = sourceColumn.tasks.findIndex(
+            (task) => task.id === taskId
+          );
+
+          const newIndex = targetColumn.tasks.findIndex(
+            (task) => task.id === overId
+          );
+
+          if (oldIndex !== newIndex) {
+            await moveTask(taskId, targetColumn.id, newIndex);
+          }
+        }
+      }
     }
   };
 
@@ -267,22 +393,39 @@ const Board = () => {
         </div>
 
         {/* Column */}
-        <div className="space-y-4 lg:space-y-0 flex flex-col lg:flex-row lg:space-x-6 lg:overflow-x-auto lg:pb-6 lg:px-2 lg:mx-2 lg:[&::-webkit-scrollbar]:h-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:[&::-webkit-scrollbar-thumb]:rounded-full">
-          {columns.map((column) => (
-            <Column
-              column={column}
-              onCreateTask={handleSubmitTask}
-              onEditColumn={() => {}}
-              key={column.id}
-            >
-              <div className="space-y-3">
-                {column.tasks.map((task) => (
-                  <TaskItem task={task} key={task.id} />
-                ))}
-              </div>
-            </Column>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={rectIntersection}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="space-y-4 lg:space-y-0 flex flex-col lg:flex-row lg:space-x-6 lg:overflow-x-auto lg:pb-6 lg:px-2 lg:mx-2 lg:[&::-webkit-scrollbar]:h-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:[&::-webkit-scrollbar-thumb]:rounded-full">
+            {columns.map((column) => (
+              <DroppableColumn
+                column={column}
+                onCreateTask={handleSubmitTask}
+                onEditColumn={() => {}}
+                key={column.id}
+              >
+                <SortableContext
+                  items={column.tasks.map((task) => task.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {column.tasks.map((task) => (
+                      <SortableTask task={task} key={task.id} />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DroppableColumn>
+            ))}
+
+            <DragOverlay>
+              {activeTask ? <TaskOverlay task={activeTask} /> : null}
+            </DragOverlay>
+          </div>
+        </DndContext>
       </main>
     </div>
   );

@@ -1,6 +1,10 @@
+"use client";
+
 import { Card, CardContent } from "../ui/card";
 import { Calendar, User } from "lucide-react";
 import { Task } from "@/lib/supabase/models";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const getPriortyColor = (priority: "low" | "medium" | "high"): string => {
   if (priority === "low") return "bg-green-600";
@@ -10,9 +14,24 @@ const getPriortyColor = (priority: "low" | "medium" | "high"): string => {
   return "bg-yellow-600";
 };
 
-const TaskItem = ({ task }: { task: Task }) => {
+const SortableTask = ({ task }: { task: Task }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const styles = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   return (
-    <div>
+    <div ref={setNodeRef} style={styles} {...listeners} {...attributes}>
       <Card className="cursor-pointer hover:shadow-md transition-shadow">
         <CardContent className="p-3 sm:p-4">
           <div className="space-y-2 sm:space-y-4">
@@ -56,4 +75,4 @@ const TaskItem = ({ task }: { task: Task }) => {
     </div>
   );
 };
-export default TaskItem;
+export default SortableTask;
